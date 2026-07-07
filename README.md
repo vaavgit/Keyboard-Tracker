@@ -18,7 +18,7 @@ KeyTracker is **100% offline**. It captures inputs locally, makes zero network r
 
 - 🔥 **Real-Time Heatmap**: A live visual map showing keypress frequency.
 - 🖱️ **Mouse Click Tracker**: Captures and counts left, right, middle, and side button mouse clicks to analyze overall gaming/workday inputs.
-- ⚡ **Interactive Typing Test**: Test your WPM (Words Per Minute) and spelling accuracy. It runs a local check against a 370k+ word English dictionary to ensure only real words contribute to your typing speed (filtering out random key jumbles like `asdawdhjbnw`).
+- ⚡ **Interactive Typing Test**: Evaluate your WPM (Words Per Minute) and accuracy with an interactive paragraph-matching test. Characters are colored in green or red in real-time as you type, matching standard online speed-testing platforms.
 - 🎮 **Gaming Dashboard**: Monitors specific gaming key configurations (WASD, Space, Shift, Ctrl, numbers) and calculates strafe ratios (A/D).
 - 📊 **Progression History**: Log and compare test runs over time to watch your typing speed and accuracy climb.
 - ⚖️ **Session Comparison**: Load any two saved logs side-by-side to diff key distributions, total keypresses, and mouse clicks.
@@ -46,7 +46,6 @@ Start the app by running:
 ```bash
 python main.py
 ```
-*Note: On the first startup, the app will run a quick background download of the dictionary text file to support the typing test.*
 
 ### 3. Standalone Compilation
 To compile KeyTracker into a single standalone executable (e.g., `.exe` on Windows):
@@ -65,7 +64,6 @@ The compiled executable will be located in the `dist/` directory.
 
 - `main.py`: Entry point; defines layout and actions for the PyQt6 UI.
 - `engine.py`: Runs a background thread tracking global system inputs (key hooks & mouse clicks).
-- `dictionary.py`: Manages the English vocabulary matching (local load, background download, and cleanup checks).
 - `heatmap_widget.py`: Custom matplotlib canvas drawing the keyboard heatmap.
 - `theme.py`: Defines color palettes and stylesheet rules for the dark minimal theme.
 - `KeyTracker.spec`: Configuration for PyInstaller packaging.

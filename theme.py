@@ -85,6 +85,40 @@ QPushButton#btn_start:disabled {{
     color: {TEXT3};
 }}
 
+QPushButton#btn_typing_start {{
+    background-color: {ACCENT2};
+    color: {BG};
+    border: none;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 8px 24px;
+    border-radius: 6px;
+}}
+QPushButton#btn_typing_start:hover {{
+    background-color: #56d364;
+}}
+QPushButton#btn_typing_start:disabled {{
+    background-color: {BG3};
+    color: {TEXT3};
+}}
+QPushButton#btn_typing_stop {{
+    background-color: {ACCENT3};
+    color: {BG};
+    border: none;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 8px 24px;
+    border-radius: 6px;
+}}
+QPushButton#btn_typing_stop:hover {{
+    background-color: #ff8080;
+}}
+QPushButton#btn_typing_stop:disabled {{
+    background-color: {BG3};
+    color: {TEXT3};
+}}
+
+
 /* ── Line Edit ── */
 QLineEdit {{
     background-color: {BG3};

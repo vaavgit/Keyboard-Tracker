@@ -21,7 +21,6 @@ from PyQt6.QtGui import QFont, QColor, QPalette
 from engine import TrackerEngine, GAMING_KEYS
 from theme import QSS, BG, BG2, BG3, BORDER, TEXT, TEXT2, TEXT3, ACCENT, ACCENT2, ACCENT3, WARN
 from heatmap_widget import HeatmapWidget
-from dictionary import dictionary
 
 
 # ── Stat card widget ───────────────────────────────────────────────────────────
@@ -118,9 +117,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("KeyTracker")
         self.setMinimumSize(1000, 680)
         self.resize(1180, 740)
-
-        # Initialize dictionary background download
-        dictionary.download_in_background()
 
         # Typing test state variables
         self.typing_test_active = False
@@ -548,6 +544,8 @@ class MainWindow(QMainWindow):
 
     # ── Typing Speed & Accuracy Test ───────────────────────────────────────────
 
+    # ── Typing Speed & Accuracy Test ───────────────────────────────────────────
+
     def _build_typing_tab(self):
         w = QWidget()
         layout = QHBoxLayout(w)
@@ -567,8 +565,8 @@ class MainWindow(QMainWindow):
 
         # Instruction
         inst = QLabel("<b>Typing Speed & Accuracy Test</b><br>"
-                      "<span style='color: #8b949e;'>Type any valid English words. Coherent sentences are not required. "
-                      "Random jumbles (like 'asdawdhjbnw') will decrease your accuracy and won't count toward your speed.</span>")
+                      "<span style='color: #8b949e;'>Type the prompt paragraph displayed below. "
+                      "Keystrokes will be highlighted in real-time. The test will auto-complete when finished.</span>")
         inst.setWordWrap(True)
         inst.setStyleSheet("font-size: 13px; border: none; background: transparent;")
         test_layout.addWidget(inst)
@@ -577,14 +575,14 @@ class MainWindow(QMainWindow):
         ctrl = QHBoxLayout()
         ctrl.setSpacing(10)
         
-        self.btn_typing_start = QPushButton("▶  Start Test")
-        self.btn_typing_start.setObjectName("btn_start") # Reuses green styling
+        self.btn_typing_start = QPushButton("Start Test")
+        self.btn_typing_start.setObjectName("btn_typing_start") # Reuses high-contrast green styling
         self.btn_typing_start.setFixedHeight(38)
         self.btn_typing_start.clicked.connect(self._start_typing_test)
         ctrl.addWidget(self.btn_typing_start)
 
-        self.btn_typing_stop = QPushButton("■  Stop Test")
-        self.btn_typing_stop.setObjectName("btn_stop") # Reuses red styling
+        self.btn_typing_stop = QPushButton("Stop Test")
+        self.btn_typing_stop.setObjectName("btn_typing_stop") # Reuses high-contrast red styling
         self.btn_typing_stop.setFixedHeight(38)
         self.btn_typing_stop.setEnabled(False)
         self.btn_typing_stop.clicked.connect(self._stop_typing_test)
@@ -600,22 +598,41 @@ class MainWindow(QMainWindow):
         self.card_typing_wpm = StatCard("WPM", "0")
         self.card_typing_acc = StatCard("Accuracy", "100%")
         self.card_typing_time = StatCard("Elapsed Time", "00:00")
-        self.card_typing_words = StatCard("Valid Words", "0 / 0")
+        self.card_typing_words = StatCard("Typed Chars", "0 / 0")
         
         for card in [self.card_typing_wpm, self.card_typing_acc, self.card_typing_time, self.card_typing_words]:
             stats_row.addWidget(card)
         test_layout.addLayout(stats_row)
 
+        # Prompt Display Area
+        self.prompt_display_frame = QFrame()
+        self.prompt_display_frame.setStyleSheet(f"background: {BG2}; border: 1px solid {BORDER}; border-radius: 8px;")
+        prompt_disp_layout = QVBoxLayout(self.prompt_display_frame)
+        prompt_disp_layout.setContentsMargins(16, 16, 16, 16)
+
+        self.prompt_display = QLabel("Click 'Start Test' above to load a typing prompt...")
+        self.prompt_display.setWordWrap(True)
+        self.prompt_display.setStyleSheet(f"""
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 15px;
+            color: {TEXT2};
+            background: transparent;
+            border: none;
+            line-height: 1.5;
+        """)
+        prompt_disp_layout.addWidget(self.prompt_display)
+        test_layout.addWidget(self.prompt_display_frame)
+
         # Text input area
         self.typing_input = QTextEdit()
-        self.typing_input.setPlaceholderText("Click 'Start Test' above to activate this typing area...")
+        self.typing_input.setPlaceholderText("Once the test starts, type here...")
         self.typing_input.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {BG2};
                 border: 1px solid {BORDER};
                 border-radius: 8px;
                 padding: 12px;
-                font-family: 'Consolas', 'Monaco', monospace;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
                 font-size: 15px;
                 color: {TEXT};
             }}
@@ -626,22 +643,6 @@ class MainWindow(QMainWindow):
         self.typing_input.setEnabled(False)
         self.typing_input.textChanged.connect(self._on_typing_text_changed)
         test_layout.addWidget(self.typing_input, 1)
-
-        # Live feedback stream frame
-        stream_frame = QFrame()
-        stream_frame.setStyleSheet(f"background: {BG3}; border: 1px solid {BORDER}; border-radius: 8px;")
-        stream_layout = QVBoxLayout(stream_frame)
-        stream_layout.setContentsMargins(12, 10, 12, 10)
-        
-        stream_title = QLabel("LIVE WORD FEEDBACK")
-        stream_title.setStyleSheet(f"color: {TEXT2}; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
-        stream_layout.addWidget(stream_title)
-        
-        self.typing_stream = QLabel("Word feedback will display here in real-time...")
-        self.typing_stream.setWordWrap(True)
-        self.typing_stream.setStyleSheet("font-size: 13px; color: #8b949e; background: transparent; border: none;")
-        stream_layout.addWidget(self.typing_stream)
-        test_layout.addWidget(stream_frame)
 
         splitter.addWidget(test_panel)
 
@@ -673,7 +674,18 @@ class MainWindow(QMainWindow):
 
         return w
 
+    # Paragraphs to select for typing tests
+    TYPING_PARAGRAPHS = [
+        "The quick brown fox jumps over the lazy dog. This classic pangram contains every letter of the English alphabet, making it a perfect quick test for keyboard speed and finger flexibility.",
+        "Programming is the art of telling another human what one wants the computer to do. Code should be written to be read by humans, and only incidentally for computers to execute.",
+        "Typography is the art and technique of arranging type to make written language legible, readable, and appealing when displayed. The arrangement of type involves selecting typefaces, point sizes, line lengths, and line-spacing.",
+        "A keyboard is one of the primary input devices used with a computer. Similar to an electric typewriter, a keyboard is composed of buttons that create letters, numbers, and symbols, as well as perform other functions.",
+        "The mouse is a handheld pointing device that detects two-dimensional motion relative to a surface. This motion is typically translated into the motion of a pointer on a display, allowing smooth control of the user interface."
+    ]
+
     def _start_typing_test(self):
+        import random
+        self.current_paragraph = random.choice(self.TYPING_PARAGRAPHS)
         self.typing_test_active = True
         self.typing_elapsed_seconds = 0
         self.typing_input.setEnabled(True)
@@ -687,8 +699,10 @@ class MainWindow(QMainWindow):
         self.card_typing_wpm.set_value("0")
         self.card_typing_acc.set_value("100%")
         self.card_typing_time.set_value("00:00")
-        self.card_typing_words.set_value("0 / 0")
-        self.typing_stream.setText("Start typing English words...")
+        self.card_typing_words.set_value(f"0 / {len(self.current_paragraph)}")
+        
+        # Set initial un-typed paragraph (all gray)
+        self.prompt_display.setText(self.current_paragraph)
 
         self.typing_start_time = time.time()
         self.typing_test_timer.start()
@@ -707,11 +721,10 @@ class MainWindow(QMainWindow):
         wpm = self.card_typing_wpm.val_label.text()
         acc = self.card_typing_acc.val_label.text()
         dur = self.card_typing_time.val_label.text()
-        words = self.card_typing_words.val_label.text()
+        chars = self.card_typing_words.val_label.text()
         
-        # Format list item: "🕒 14:32  ·  64 WPM  ·  98% Acc  ·  00:45s  ·  42 / 43 words"
         time_str = datetime.now().strftime("%H:%M")
-        history_text = f"🕒 {time_str}  ·  {wpm} WPM  ·  {acc} Acc  ·  {dur}  ·  {words} words"
+        history_text = f"🕒 {time_str}  ·  {wpm} WPM  ·  {acc} Acc  ·  {dur}  ·  {chars.split(' ')[0]} chars"
         self.typing_history_list.insertItem(0, QListWidgetItem(history_text))
 
     def _typing_test_tick(self):
@@ -731,63 +744,60 @@ class MainWindow(QMainWindow):
 
     def _update_typing_stats(self):
         text = self.typing_input.toPlainText()
-        words = text.split()
-        if not words:
+        target = self.current_paragraph
+        
+        # Block additional characters beyond target length
+        if len(text) > len(target):
+            text = text[:len(target)]
+            self.typing_input.blockSignals(True)
+            self.typing_input.setPlainText(text)
+            cursor = self.typing_input.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.typing_input.setTextCursor(cursor)
+            self.typing_input.blockSignals(False)
+
+        if not text:
             self.card_typing_wpm.set_value("0")
             self.card_typing_acc.set_value("100%")
-            self.card_typing_words.set_value("0 / 0")
-            self.typing_stream.setText("Start typing English words...")
+            self.card_typing_words.set_value(f"0 / {len(target)}")
+            self.prompt_display.setText(target)
             return
 
-        ends_with_space = text and text[-1].isspace()
-        words_to_validate = words if ends_with_space else words[:-1]
-        last_word_in_progress = "" if ends_with_space else words[-1]
-
-        valid_words = []
-        invalid_words = []
-
-        for w in words_to_validate:
-            if dictionary.is_valid_word(w):
-                valid_words.append(w)
+        # Compare character by character
+        html = []
+        correct_chars = 0
+        total_typed = len(text)
+        
+        for i, char in enumerate(target):
+            if i < total_typed:
+                if text[i] == char:
+                    # Correct character: green
+                    html.append(f'<span style="color: {ACCENT2}; font-weight: bold;">{char}</span>')
+                    correct_chars += 1
+                else:
+                    # Incorrect character: red underlined
+                    disp_char = "_" if char == " " else char
+                    html.append(f'<span style="color: {ACCENT3}; font-weight: bold; text-decoration: underline;">{disp_char}</span>')
             else:
-                invalid_words.append(w)
+                # Untyped character: gray
+                html.append(f'<span style="color: {TEXT2};">{char}</span>')
 
-        if last_word_in_progress:
-            if dictionary.is_valid_word(last_word_in_progress):
-                valid_words.append(last_word_in_progress)
-            # otherwise, we ignore it for now so we don't flash red mid-word
+        self.prompt_display.setText("".join(html))
 
-        # Speed (WPM) = (valid characters / 5.0) / elapsed_minutes
-        valid_char_count = sum(len(w) for w in valid_words)
-        # Add virtual spaces between valid words
-        if len(valid_words) > 1:
-            valid_char_count += len(valid_words) - 1
-            
+        # Speed (WPM) = (correct characters / 5.0) / elapsed_minutes
         elapsed_mins = max(self.typing_elapsed_seconds / 60.0, 0.001)
-        wpm = int((valid_char_count / 5.0) / elapsed_mins)
+        wpm = int((correct_chars / 5.0) / elapsed_mins)
 
         # Accuracy
-        total_words_validated = len(valid_words) + len(invalid_words)
-        if total_words_validated > 0:
-            acc = int((len(valid_words) / total_words_validated) * 100)
-        else:
-            acc = 100
+        acc = int((correct_chars / total_typed) * 100) if total_typed > 0 else 100
 
         self.card_typing_wpm.set_value(str(wpm))
         self.card_typing_acc.set_value(f"{acc}%")
-        self.card_typing_words.set_value(f"{len(valid_words)} / {total_words_validated}")
+        self.card_typing_words.set_value(f"{total_typed} / {len(target)}")
 
-        # Stream HTML display
-        stream_html = []
-        for w in words_to_validate:
-            if dictionary.is_valid_word(w):
-                stream_html.append(f'<span style="color: {ACCENT2}; font-weight: bold;">{w}</span>')
-            else:
-                stream_html.append(f'<span style="color: {ACCENT3}; font-weight: bold; text-decoration: line-through;">{w}</span>')
-        if last_word_in_progress:
-            stream_html.append(f'<span style="color: {TEXT}; font-weight: bold;">{last_word_in_progress}</span>')
-
-        self.typing_stream.setText(" ".join(stream_html[-20:]))
+        # Auto-stop when completed
+        if total_typed >= len(target):
+            self._stop_typing_test()
 
     def _clear_typing_history(self):
         self.typing_history_list.clear()

@@ -43,6 +43,9 @@ venv.bak/
 # Local session analytics (contains private keystrokes)
 sessions/
 
+# Local dictionary files (downloaded automatically at runtime)
+words.txt
+
 # OS files
 .DS_Store
 Thumbs.db

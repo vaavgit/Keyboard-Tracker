@@ -6,13 +6,14 @@ Run: python main.py
 import sys
 import os
 import json
+import time
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QLineEdit, QTabWidget, QListWidget,
     QListWidgetItem, QSplitter, QFrame, QScrollArea, QGridLayout,
-    QSizePolicy, QMessageBox, QProgressBar,
+    QSizePolicy, QMessageBox, QProgressBar, QTextEdit,
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont, QColor, QPalette
@@ -20,6 +21,7 @@ from PyQt6.QtGui import QFont, QColor, QPalette
 from engine import TrackerEngine, GAMING_KEYS
 from theme import QSS, BG, BG2, BG3, BORDER, TEXT, TEXT2, TEXT3, ACCENT, ACCENT2, ACCENT3, WARN
 from heatmap_widget import HeatmapWidget
+from dictionary import dictionary
 
 
 # ── Stat card widget ───────────────────────────────────────────────────────────
@@ -117,6 +119,16 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000, 680)
         self.resize(1180, 740)
 
+        # Initialize dictionary background download
+        dictionary.download_in_background()
+
+        # Typing test state variables
+        self.typing_test_active = False
+        self.typing_elapsed_seconds = 0
+        self.typing_test_timer = QTimer()
+        self.typing_test_timer.setInterval(100) # Tick every 100ms
+        self.typing_test_timer.timeout.connect(self._typing_test_tick)
+
         self._build_ui()
         self._setup_timer()
 
@@ -141,6 +153,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self.tabs, 1)
 
         self.tabs.addTab(self._build_live_tab(), "  Live  ")
+        self.tabs.addTab(self._build_typing_tab(), "  Typing Test  ")
         self.tabs.addTab(self._build_sessions_tab(), "  Sessions  ")
         self.tabs.addTab(self._build_compare_tab(), "  Compare  ")
 
@@ -532,6 +545,252 @@ class MainWindow(QMainWindow):
         lines.append(f"{'MOUSE TOT':>10}   {m1:>8,}   {m2:>8,}   {m2-m1:>+8,}")
 
         self.cmp_result.setText("\n".join(lines))
+
+    # ── Typing Speed & Accuracy Test ───────────────────────────────────────────
+
+    def _build_typing_tab(self):
+        w = QWidget()
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(16)
+
+        # Splitter to divide left (test) and right (history)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(splitter)
+
+        # ── Left pane: Test Panel ──
+        test_panel = QFrame()
+        test_panel.setStyleSheet("background: transparent; border: none;")
+        test_layout = QVBoxLayout(test_panel)
+        test_layout.setContentsMargins(0, 0, 0, 0)
+        test_layout.setSpacing(16)
+
+        # Instruction
+        inst = QLabel("<b>Typing Speed & Accuracy Test</b><br>"
+                      "<span style='color: #8b949e;'>Type any valid English words. Coherent sentences are not required. "
+                      "Random jumbles (like 'asdawdhjbnw') will decrease your accuracy and won't count toward your speed.</span>")
+        inst.setWordWrap(True)
+        inst.setStyleSheet("font-size: 13px; border: none; background: transparent;")
+        test_layout.addWidget(inst)
+
+        # Control Row
+        ctrl = QHBoxLayout()
+        ctrl.setSpacing(10)
+        
+        self.btn_typing_start = QPushButton("▶  Start Test")
+        self.btn_typing_start.setObjectName("btn_start") # Reuses green styling
+        self.btn_typing_start.setFixedHeight(38)
+        self.btn_typing_start.clicked.connect(self._start_typing_test)
+        ctrl.addWidget(self.btn_typing_start)
+
+        self.btn_typing_stop = QPushButton("■  Stop Test")
+        self.btn_typing_stop.setObjectName("btn_stop") # Reuses red styling
+        self.btn_typing_stop.setFixedHeight(38)
+        self.btn_typing_stop.setEnabled(False)
+        self.btn_typing_stop.clicked.connect(self._stop_typing_test)
+        ctrl.addWidget(self.btn_typing_stop)
+        
+        ctrl.addStretch()
+        test_layout.addLayout(ctrl)
+
+        # Stats Row
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(12)
+        
+        self.card_typing_wpm = StatCard("WPM", "0")
+        self.card_typing_acc = StatCard("Accuracy", "100%")
+        self.card_typing_time = StatCard("Elapsed Time", "00:00")
+        self.card_typing_words = StatCard("Valid Words", "0 / 0")
+        
+        for card in [self.card_typing_wpm, self.card_typing_acc, self.card_typing_time, self.card_typing_words]:
+            stats_row.addWidget(card)
+        test_layout.addLayout(stats_row)
+
+        # Text input area
+        self.typing_input = QTextEdit()
+        self.typing_input.setPlaceholderText("Click 'Start Test' above to activate this typing area...")
+        self.typing_input.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {BG2};
+                border: 1px solid {BORDER};
+                border-radius: 8px;
+                padding: 12px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 15px;
+                color: {TEXT};
+            }}
+            QTextEdit:focus {{
+                border-color: {ACCENT};
+            }}
+        """)
+        self.typing_input.setEnabled(False)
+        self.typing_input.textChanged.connect(self._on_typing_text_changed)
+        test_layout.addWidget(self.typing_input, 1)
+
+        # Live feedback stream frame
+        stream_frame = QFrame()
+        stream_frame.setStyleSheet(f"background: {BG3}; border: 1px solid {BORDER}; border-radius: 8px;")
+        stream_layout = QVBoxLayout(stream_frame)
+        stream_layout.setContentsMargins(12, 10, 12, 10)
+        
+        stream_title = QLabel("LIVE WORD FEEDBACK")
+        stream_title.setStyleSheet(f"color: {TEXT2}; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        stream_layout.addWidget(stream_title)
+        
+        self.typing_stream = QLabel("Word feedback will display here in real-time...")
+        self.typing_stream.setWordWrap(True)
+        self.typing_stream.setStyleSheet("font-size: 13px; color: #8b949e; background: transparent; border: none;")
+        stream_layout.addWidget(self.typing_stream)
+        test_layout.addWidget(stream_frame)
+
+        splitter.addWidget(test_panel)
+
+        # ── Right pane: History Panel ──
+        history_panel = QFrame()
+        history_panel.setStyleSheet(f"background-color: {BG2}; border-left: 1px solid {BORDER};")
+        history_layout = QVBoxLayout(history_panel)
+        history_layout.setContentsMargins(16, 0, 0, 0)
+        history_layout.setSpacing(12)
+
+        history_title = QLabel("RECENT TEST RUNS")
+        history_title.setStyleSheet(f"color: {TEXT2}; font-size: 11px; letter-spacing: 1px; font-weight: bold;")
+        history_layout.addWidget(history_title)
+
+        self.typing_history_list = QListWidget()
+        self.typing_history_list.setStyleSheet(f"background-color: {BG3}; border: 1px solid {BORDER}; border-radius: 8px;")
+        self.typing_history_list.setFont(QFont("Segoe UI", 10))
+        history_layout.addWidget(self.typing_history_list, 1)
+
+        btn_clear_history = QPushButton("Clear History")
+        btn_clear_history.setFixedHeight(32)
+        btn_clear_history.clicked.connect(self._clear_typing_history)
+        history_layout.addWidget(btn_clear_history)
+
+        splitter.addWidget(history_panel)
+        
+        # Set initial splitter sizes (75% left, 25% right)
+        splitter.setSizes([750, 250])
+
+        return w
+
+    def _start_typing_test(self):
+        self.typing_test_active = True
+        self.typing_elapsed_seconds = 0
+        self.typing_input.setEnabled(True)
+        self.typing_input.clear()
+        self.typing_input.setFocus()
+        
+        self.btn_typing_start.setEnabled(False)
+        self.btn_typing_stop.setEnabled(True)
+        
+        # Reset stats UI
+        self.card_typing_wpm.set_value("0")
+        self.card_typing_acc.set_value("100%")
+        self.card_typing_time.set_value("00:00")
+        self.card_typing_words.set_value("0 / 0")
+        self.typing_stream.setText("Start typing English words...")
+
+        self.typing_start_time = time.time()
+        self.typing_test_timer.start()
+
+    def _stop_typing_test(self):
+        if not self.typing_test_active:
+            return
+        
+        self.typing_test_active = False
+        self.typing_test_timer.stop()
+        self.typing_input.setEnabled(False)
+        self.btn_typing_start.setEnabled(True)
+        self.btn_typing_stop.setEnabled(False)
+
+        # Save final result to history
+        wpm = self.card_typing_wpm.val_label.text()
+        acc = self.card_typing_acc.val_label.text()
+        dur = self.card_typing_time.val_label.text()
+        words = self.card_typing_words.val_label.text()
+        
+        # Format list item: "🕒 14:32  ·  64 WPM  ·  98% Acc  ·  00:45s  ·  42 / 43 words"
+        time_str = datetime.now().strftime("%H:%M")
+        history_text = f"🕒 {time_str}  ·  {wpm} WPM  ·  {acc} Acc  ·  {dur}  ·  {words} words"
+        self.typing_history_list.insertItem(0, QListWidgetItem(history_text))
+
+    def _typing_test_tick(self):
+        if not self.typing_test_active:
+            return
+        self.typing_elapsed_seconds = time.time() - self.typing_start_time
+        mins, secs = divmod(int(self.typing_elapsed_seconds), 60)
+        self.card_typing_time.set_value(f"{mins:02d}:{secs:02d}")
+        
+        # Recalculate stats on tick to keep WPM moving as time flows
+        self._update_typing_stats()
+
+    def _on_typing_text_changed(self):
+        if not self.typing_test_active:
+            return
+        self._update_typing_stats()
+
+    def _update_typing_stats(self):
+        text = self.typing_input.toPlainText()
+        words = text.split()
+        if not words:
+            self.card_typing_wpm.set_value("0")
+            self.card_typing_acc.set_value("100%")
+            self.card_typing_words.set_value("0 / 0")
+            self.typing_stream.setText("Start typing English words...")
+            return
+
+        ends_with_space = text and text[-1].isspace()
+        words_to_validate = words if ends_with_space else words[:-1]
+        last_word_in_progress = "" if ends_with_space else words[-1]
+
+        valid_words = []
+        invalid_words = []
+
+        for w in words_to_validate:
+            if dictionary.is_valid_word(w):
+                valid_words.append(w)
+            else:
+                invalid_words.append(w)
+
+        if last_word_in_progress:
+            if dictionary.is_valid_word(last_word_in_progress):
+                valid_words.append(last_word_in_progress)
+            # otherwise, we ignore it for now so we don't flash red mid-word
+
+        # Speed (WPM) = (valid characters / 5.0) / elapsed_minutes
+        valid_char_count = sum(len(w) for w in valid_words)
+        # Add virtual spaces between valid words
+        if len(valid_words) > 1:
+            valid_char_count += len(valid_words) - 1
+            
+        elapsed_mins = max(self.typing_elapsed_seconds / 60.0, 0.001)
+        wpm = int((valid_char_count / 5.0) / elapsed_mins)
+
+        # Accuracy
+        total_words_validated = len(valid_words) + len(invalid_words)
+        if total_words_validated > 0:
+            acc = int((len(valid_words) / total_words_validated) * 100)
+        else:
+            acc = 100
+
+        self.card_typing_wpm.set_value(str(wpm))
+        self.card_typing_acc.set_value(f"{acc}%")
+        self.card_typing_words.set_value(f"{len(valid_words)} / {total_words_validated}")
+
+        # Stream HTML display
+        stream_html = []
+        for w in words_to_validate:
+            if dictionary.is_valid_word(w):
+                stream_html.append(f'<span style="color: {ACCENT2}; font-weight: bold;">{w}</span>')
+            else:
+                stream_html.append(f'<span style="color: {ACCENT3}; font-weight: bold; text-decoration: line-through;">{w}</span>')
+        if last_word_in_progress:
+            stream_html.append(f'<span style="color: {TEXT}; font-weight: bold;">{last_word_in_progress}</span>')
+
+        self.typing_stream.setText(" ".join(stream_html[-20:]))
+
+    def _clear_typing_history(self):
+        self.typing_history_list.clear()
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

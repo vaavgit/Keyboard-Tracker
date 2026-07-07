@@ -1,26 +1,27 @@
-# KeyTracker 🎮⌨️
+# KeyTracker 🎮🖱️⌨️
 
-A lightweight, offline desktop application that tracks keyboard analytics, builds live heatmaps, and monitors keypress speed. 
+A lightweight, local-only desktop application that tracks keyboard analytics, monitors mouse activity, builds live heatmaps, and measures typing metrics. 
 
-It is written in Python using **PyQt6** for the UI, **matplotlib** for the heatmap visualizations, and **pynput** for global keyboard and mouse tracking.
+It is written in Python using **PyQt6** for the UI, **matplotlib** for visualizations, and **pynput** for system-wide keyboard and mouse hooks.
 
 ---
 
 ## Why I Built This
 
-I wanted a keyboard heatmap and speed tracker to analyze my gaming sessions and coding sprints. Almost every tool available online either required an account, had excessive bloat, or raised privacy concerns by running background telemetry. 
+I wanted a keyboard heatmap, mouse tracking, and speed analysis tool to evaluate my coding speed and gaming sessions. Most telemetry tools require online logins, run suspicious background processes, or send telemetry to external servers. 
 
-KeyTracker is **100% local**. It runs entirely on your machine, makes zero network requests, and saves session logs as raw JSON files in a local directory.
+KeyTracker is **100% offline**. It captures inputs locally, makes zero network requests, and saves session logs as raw JSON files in a local directory.
 
 ---
 
 ## Features
 
-- 🔥 **Real-Time Heatmap**: A visual map showing keyboard frequency that updates dynamically as you type.
-- ⚡ **KPM (Keys Per Minute) Tracker**: Monitors typing speed peaks and averages over the course of a session.
-- 🎮 **Gaming Dashboard**: Specially monitors gaming layouts (WASD, Space, Shift, Ctrl, Q/E/R/F) and calculates key ratios (like your A/D strafe ratio).
-- 📂 **Session History**: Save sessions and load them later to review your statistics.
-- ⚖️ **Comparison Tool**: Load any two saved sessions side-by-side to compare metrics (KPM, total keystrokes, distribution).
+- 🔥 **Real-Time Heatmap**: A live visual map showing keypress frequency.
+- 🖱️ **Mouse Click Tracker**: Captures and counts left, right, middle, and side button mouse clicks to analyze overall gaming/workday inputs.
+- ⚡ **Interactive Typing Test**: Test your WPM (Words Per Minute) and spelling accuracy. It runs a local check against a 370k+ word English dictionary to ensure only real words contribute to your typing speed (filtering out random key jumbles like `asdawdhjbnw`).
+- 🎮 **Gaming Dashboard**: Monitors specific gaming key configurations (WASD, Space, Shift, Ctrl, numbers) and calculates strafe ratios (A/D).
+- 📊 **Progression History**: Log and compare test runs over time to watch your typing speed and accuracy climb.
+- ⚖️ **Session Comparison**: Load any two saved logs side-by-side to diff key distributions, total keypresses, and mouse clicks.
 
 ---
 
@@ -30,7 +31,7 @@ KeyTracker is **100% local**. It runs entirely on your machine, makes zero netwo
 Make sure you have Python 3.10+ installed.
 
 ### 1. Installation
-Clone the repository and install the dependencies from the root directory:
+Clone the repository and install the dependencies in the root directory:
 ```bash
 # Create a virtual environment (optional but recommended)
 python -m venv .venv
@@ -45,11 +46,12 @@ Start the app by running:
 ```bash
 python main.py
 ```
+*Note: On the first startup, the app will run a quick background download of the dictionary text file to support the typing test.*
 
-### 3. Packaging into a Standalone Executable
-If you want to compile KeyTracker into a single standalone executable (e.g. an `.exe` file on Windows), you can use PyInstaller with the provided `.spec` file:
+### 3. Standalone Compilation
+To compile KeyTracker into a single standalone executable (e.g., `.exe` on Windows):
 ```bash
-# Install pyinstaller if you don't have it
+# Install pyinstaller
 pip install pyinstaller
 
 # Build the executable
@@ -61,12 +63,12 @@ The compiled executable will be located in the `dist/` directory.
 
 ## Project Structure
 
-- `main.py`: The entry point and PyQT6 UI layout/interactions.
-- `engine.py`: Background thread listener that hooks keyboard/mouse inputs and emits updates.
-- `heatmap_widget.py`: Custom matplotlib canvas that plots the keyboard layout.
-- `theme.py`: Custom stylesheet and color palettes for the dark minimal UI.
-- `requirements.txt`: Python package dependencies.
-- `KeyTracker.spec`: Config file for building a standalone app with PyInstaller.
+- `main.py`: Entry point; defines layout and actions for the PyQt6 UI.
+- `engine.py`: Runs a background thread tracking global system inputs (key hooks & mouse clicks).
+- `dictionary.py`: Manages the English vocabulary matching (local load, background download, and cleanup checks).
+- `heatmap_widget.py`: Custom matplotlib canvas drawing the keyboard heatmap.
+- `theme.py`: Defines color palettes and stylesheet rules for the dark minimal theme.
+- `KeyTracker.spec`: Configuration for PyInstaller packaging.
 
 ---
 

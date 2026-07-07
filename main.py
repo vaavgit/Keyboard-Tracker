@@ -557,8 +557,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter)
 
         # ── Left pane: Test Panel ──
-        test_panel = QFrame()
-        test_panel.setStyleSheet("background: transparent; border: none;")
+        test_panel = QWidget()
         test_layout = QVBoxLayout(test_panel)
         test_layout.setContentsMargins(0, 0, 0, 0)
         test_layout.setSpacing(16)
@@ -606,7 +605,7 @@ class MainWindow(QMainWindow):
 
         # Prompt Display Area
         self.prompt_display_frame = QFrame()
-        self.prompt_display_frame.setStyleSheet(f"background: {BG2}; border: 1px solid {BORDER}; border-radius: 8px;")
+        self.prompt_display_frame.setStyleSheet(f"QFrame {{ background: {BG2}; border: 1px solid {BORDER}; border-radius: 8px; }}")
         prompt_disp_layout = QVBoxLayout(self.prompt_display_frame)
         prompt_disp_layout.setContentsMargins(16, 16, 16, 16)
 
@@ -648,7 +647,7 @@ class MainWindow(QMainWindow):
 
         # ── Right pane: History Panel ──
         history_panel = QFrame()
-        history_panel.setStyleSheet(f"background-color: {BG2}; border-left: 1px solid {BORDER};")
+        history_panel.setStyleSheet(f"QFrame {{ background-color: {BG2}; border: none; border-left: 1px solid {BORDER}; }}")
         history_layout = QVBoxLayout(history_panel)
         history_layout.setContentsMargins(16, 0, 0, 0)
         history_layout.setSpacing(12)
